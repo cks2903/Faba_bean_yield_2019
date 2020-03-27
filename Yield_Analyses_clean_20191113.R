@@ -1,6 +1,6 @@
 
 ###################################################
-#     Yield analysis NorFab 2019          #
+#      Yield analysis NorFab 2019                 #
 ###################################################
 
 setwd("/Volumes/ST_MBG-PMg/Cathrine/NorFab/Article/2. version Dec2019/")
@@ -19,6 +19,8 @@ library(lmerTest)
 library(nlme)
 library(cowplot)
 library(multcompView)
+library(dplyr)
+
 
 
 scaleFUN <- function(x) sprintf("%.2f", x)
@@ -38,6 +40,11 @@ newd=completeFun(d,"Yield..g..Pr.kvm.")
 
 variances=aggregate(newd$Yield..g..Pr.kvm.,list(newd$Cultivar),var)
 mean=aggregate(newd$Yield..g..Pr.kvm.,list(newd$Cultivar),mean)
+sd_yieldmeans=aggregate(newd$Yield..g..Pr.kvm.,list(newd$Cultivar),sd)
+sd_yieldmeans
+repcultivar=count(newd, vars = Cultivar)
+se_yieldMeans=sd_yieldmeans[,2]/sqrt(repcultivar$n) #Se of cultivar means
+
 total=cbind(variances,mean)
 colnames(total)=c("Cultivar","YieldVar","Cultivar2","MeanYield")
 total$MeanYield
@@ -521,7 +528,7 @@ p16=ggplot(merged,aes(means_pr_trial,unfactor(`Taifun`)))+geom_point(col="#00ba3
 lm_fit=lm(unfactor(`Vertigo`)~means_pr_trial,data=merged)                                  
 summary(lm_fit)
 linearHypothesis(lm_fit,hypothesis.matrix=c(0,1), rhs=1.0)  
-p17=ggplot(merged,aes(means_pr_trial,unfactor(`Vertigo`)))+geom_point(col="#00ba38",cex=10,alpha=0.8) + ylim(c(100, 1000)) + xlim(c(100,1000)) + ggtitle("Vertigo") +geom_abline(intercept = 0, slope = 1,col="black",cex=2) + geom_abline(col="#00ba38",intercept=-coef(lm_fit)[1],slope=coef(lm_fit)[2],cex=4) +
+p17=ggplot(merged,aes(means_pr_trial,unfactor(`Vertigo`)))+geom_point(col="#00ba38",cex=10,alpha=0.8) + ylim(c(100, 1000)) + xlim(c(100,1000)) + ggtitle("Vertigo") +geom_abline(intercept = 0, slope = 1,col="black",cex=2) + geom_abline(col="#00ba38",intercept=coef(lm_fit)[1],slope=coef(lm_fit)[2],cex=4) +
   theme(axis.text.x=element_text(size=55),
         axis.text.y=element_text(size=55),
         plot.title = element_text(size=75),) +
@@ -588,8 +595,11 @@ correlation(Filtered_protein$Protein,Filtered_protein$Yield..g..Pr.kvm.) #-0.08,
 
 
 # Fit model to protein data
-CM<- lmer(Protein ~ (1|Location)+(1|Year)+(1|Cultivar:Location)+(1|Cultivar:Year)+(1|YearLoc)+ (Scaled_Environmental_protein_mean|Cultivar), data = Filtered_protein,REML=T) 
+CM<- lmer(Protein ~ (1|Location)+(1|Year)+(1|Cultivar:Location)+(1|Cultivar:Year)+ (Scaled_Environmental_protein_mean|Cultivar), data = Filtered_protein,REML=T) 
 summary(CM)
+
+lol<- lmer(Protein ~ (1|Location)+(1|Year)+(1|YearLoc), data = Filtered_protein,REML=T) 
+summary(lol)
 
 Residuals <- residuals(CM)
 shapiro.test(Residuals) #fits
@@ -612,20 +622,17 @@ new=as.data.frame(new)
 
 ######## Testing significance of all random effects
 # do a likelihood ratio test
-CM_ML<- lmer(Protein ~ (1|Location)+(1|Year)+(1|Cultivar:Location)+(1|Cultivar:Year)+(1|YearLoc)+ (Scaled_Environmental_protein_mean|Cultivar), data = Filtered_protein,REML=F) 
+CM_ML<- lmer(Protein ~ (1|Location)+(1|Year)+(1|Cultivar:Location)+(1|Cultivar:Year)+ (Scaled_Environmental_protein_mean|Cultivar), data = Filtered_protein,REML=F) 
 summary(CM_ML)
 
 #Test significans of interaction effects
-CM_0<- lmer(Protein ~ (1|Location)+(1|Year)+(1|Cultivar:Year)+(1|YearLoc)+ (Scaled_Environmental_protein_mean|Cultivar), data = Filtered_protein,REML=F) 
+CM_0<- lmer(Protein ~ (1|Location)+(1|Year)+(1|Cultivar:Year)+ (Scaled_Environmental_protein_mean|Cultivar), data = Filtered_protein,REML=F) 
 anova(CM_ML,CM_0) #Cultivar:Location has a significant effect ***
 
-CM_0<- lmer(Protein ~ (1|Location)+(1|Year)+(1|Cultivar:Location)+(1|YearLoc)+ (Scaled_Environmental_protein_mean|Cultivar), data = Filtered_protein,REML=F) 
+CM_0<- lmer(Protein ~ (1|Location)+(1|Year)+(1|Cultivar:Location)+ (Scaled_Environmental_protein_mean|Cultivar), data = Filtered_protein,REML=F) 
 anova(CM_ML,CM_0) #Cultivar:Year has a significant effect ***
 
-CM_0<- lmer(Protein ~ (1|Location)+(1|Year)+(1|Cultivar:Location)+(1|Cultivar:Year)+ (Scaled_Environmental_protein_mean|Cultivar), data = Filtered_protein,REML=F) 
-anova(CM_ML,CM_0) #Year:Location do not have a significant effect
-
-CM_0<- lmer(Protein ~ (1|Location)+(1|Year)+(1|Cultivar:Location)+(1|Cultivar:Year)+(1|YearLoc)+ (1|Cultivar), data = Filtered_protein,REML=F) 
+CM_0<- lmer(Protein ~ (1|Location)+(1|Year)+(1|Cultivar:Location)+(1|Cultivar:Year)+ (1|Cultivar), data = Filtered_protein,REML=F) 
 anova(CM_ML,CM_0) #Cultivar by FW regression do not have a significant effect
 
 CM_<- lmer(Protein ~ (1|Cultivar) + (1|Location)+(1|Year)+(1|Cultivar:Year), data = Filtered_protein,REML=F) 
@@ -636,8 +643,8 @@ CM_<- lmer(Protein ~ (1|Cultivar) + (1|Location)+(1|Year)+(1|Cultivar:Year), dat
 CM_0<- lmer(Protein ~ (1|Cultivar) + (1|Location)+(1|Cultivar:Year), data = Filtered_protein,REML=F) 
 anova(CM_,CM_0)#Year has a significant effect, **
 
-CM_<- lmer(Protein ~ (1|Location)+(1|Year)+(1|YearLoc)+ (1|Cultivar), data = Filtered_protein,REML=F) 
-CM_0<- lmer(Protein ~ (1|Location)+(1|Year)+(1|YearLoc), data = Filtered_protein,REML=F) 
+CM_<- lmer(Protein ~ (1|Location)+(1|Year) + (1|Cultivar), data = Filtered_protein,REML=F) 
+CM_0<- lmer(Protein ~ (1|Location)+(1|Year), data = Filtered_protein,REML=F) 
 anova(CM_,CM_0)#Cultivar has a significant effect, ***
 
 ####Fit model on protein yield
@@ -670,29 +677,77 @@ ggplot(new, aes(x=unfactor(BLUPS_Yield), y=unfactor(BLUPS_Protein)))+geom_point(
 
 
 
-# Divide into the two groups
-#Group1=new[c(10,14,15,8,12),]
-#Group2=new[c(1,3,2,4,5,6,7,9,11,13,16,17),]
+# Test significance of protein-yield cor. when leaving some out
+correlation(as.numeric(as.character(new$BLUPS_Protein)),as.numeric(as.character(new$BLUPS_Yield))) 
+correlation(Cultivar_effects_protein,Cultivar_effects) #BLUPs of yield on all data, -0.61 **
 
-#correlation(Group2[,2],Group2[,1]) #-0.23 not significant
-#correlation(Group1[,2],Group1[,1]) #-0.33 not significant
+new_withoutkontuandsd=new[-c(10,14),]
+ggplot(new_withoutkontuandsd, aes(x=unfactor(BLUPS_Yield), y=unfactor(BLUPS_Protein)))+geom_point(col="#00ba38",cex=3.5) +
+  geom_text(label=new_withoutkontuandsd$cultivar,size=5.5,vjust = 0, nudge_y = 0.1) +
+  stat_smooth(method="lm",col="#00ba38") + 
+  labs(x="Cultivar BLUPs Yield", y = "Cultivar BLUPs Protein") + theme_bw()
+
+correlation(as.numeric(as.character(new_withoutkontuandsd$BLUPS_Protein)),as.numeric(as.character(new_withoutkontuandsd$BLUPS_Yield))) #-0.63 *
+
+new_withoutkontuandsdandssns1=new[-c(10,14,15),]
+ggplot(new_withoutkontuandsdandssns1, aes(x=unfactor(BLUPS_Yield), y=unfactor(BLUPS_Protein)))+geom_point(col="#00ba38",cex=3.5) +
+  geom_text(label=new_withoutkontuandsdandssns1$cultivar,size=5.5,vjust = 0, nudge_y = 0.1) +
+  stat_smooth(method="lm",col="#00ba38") +
+  labs(x="Cultivar BLUPs Yield", y = "Cultivar BLUPs Protein") + theme_bw()
+
+correlation(as.numeric(as.character(new_withoutkontuandsdandssns1$BLUPS_Protein)),as.numeric(as.character(new_withoutkontuandsdandssns1$BLUPS_Yield))) #-0.54 *
+
+new_withouthighprotein=new[-c(8,12,15),]
+ggplot(new_withouthighprotein, aes(x=unfactor(BLUPS_Yield), y=unfactor(BLUPS_Protein)))+geom_point(col="#00ba38",cex=3.5) +
+  geom_text(label=new_withouthighprotein$cultivar,size=5.5,vjust = 0, nudge_y = 0.1) +
+  stat_smooth(method="lm",col="#00ba38") + 
+  labs(x="Cultivar BLUPs Yield", y = "Cultivar BLUPs Protein") + theme_bw()
+
+correlation(as.numeric(as.character(new_withouthighprotein$BLUPS_Protein)),as.numeric(as.character(new_withouthighprotein$BLUPS_Yield))) #-0.73 **
 
 
+new_rm_5lowestyield=new[-c(10,14,15,8,12),]
+ggplot(new_rm_5lowestyield, aes(x=unfactor(BLUPS_Yield), y=unfactor(BLUPS_Protein)))+geom_point(col="#00ba38",cex=3.5) +
+  geom_text(label=new_rm_5lowestyield$cultivar,size=5.5,vjust = 0, nudge_y = 0.1) +
+  stat_smooth(method="lm",col="#00ba38") +
+  labs(x="Cultivar BLUPs Yield", y = "Cultivar BLUPs Protein") + theme_bw()
 
-## Make Figure 1B
+correlation(as.numeric(as.character(new_rm_5lowestyield$BLUPS_Protein)),as.numeric(as.character(new_rm_5lowestyield$BLUPS_Yield))) #0.14 (not signif)
+
+lowyield=new[-c(1,3,2,4,5,6,7,9,11,13,16,17),]
+ggplot(lowyield, aes(x=unfactor(BLUPS_Yield), y=unfactor(BLUPS_Protein)))+geom_point(col="#00ba38",cex=3.5) +
+  geom_text(label=lowyield$cultivar,size=5.5,vjust = 0, nudge_y = 0.1) +
+  stat_smooth(method="lm",col="#00ba38") +
+  labs(x="Cultivar BLUPs Yield", y = "Cultivar BLUPs Protein") + theme_bw()
+
+correlation(as.numeric(as.character(lowyield$BLUPS_Protein)),as.numeric(as.character(lowyield$BLUPS_Yield))) #0.97 (**)
+
+## Make Figure 1, panel 1
 CVpercent
 total$CV=c(40.59527,37.12608,40.05453,41.90156,42.78845,41.12105,37.52563,45.72125,42.89822,44.01177,40.12525,39.70240,39.88650,36.86544,40.03375,39.39686,44.05776)
 plot=ggplot(total, aes(x=MeanYield, y=CV))+geom_point(col="#00ba38",cex=3.5,alpha=0.8) +
   geom_text(label=total$Cultivar,size=4.5, vjust=0.5) +
   #scale_y_continuous(labels=scaleFUN) +
   #scale_x_continuous(labels=scaleFUN) +
-  ylab("Coefficient of variance (%)") +
+  ylab("Coefficient of variance (%)") + ylim(36.5,47) +
   xlab("Mean yield g/sqm") +
   geom_vline(xintercept=mean(filtered$Yield..g..Pr.kvm.),colour="black",linetype=2) +
   geom_hline(yintercept=mean(total$CV),colour="black",linetype=2)
 
 plot+theme_bw()
 
+# Panel 1 Figure 1
+e <- ggplot(newd, aes(x = reorder(Cultivar, Yield..g..Pr.kvm., fun = mean), y = Yield..g..Pr.kvm.)) + 
+  geom_boxplot(fill = "#00ba38",alpha=.8) +geom_jitter(position=position_jitter(0.2),cex=1)  +
+  labs(x="Cultivar", y="Seed yield (g/m2)")+theme_bw(base_size = 14) 
+
+e
+
+
+e1<-ggplot(data=total, aes(x=reorder(Cultivar, MeanYield), y=MeanYield)) +
+  geom_bar(stat="identity", fill="#00ba38",alpha=.8)+ ylim()
+  theme_minimal()
+e1
 
 ### Calculate correlations between stability parameters
 total$regression=c(0.96,0.91,0.97,1.04,1.12,1.14,1.06,1.02,1.12,0.72,1.13,0.92,1.11,0.62,0.90,1.01,1.19)
@@ -703,10 +758,12 @@ correlation(total$regression,total$MeanYield) #0.91 ***
 correlation(total$CV,total$regression) #0.33 (not significant)
 
 
+
+
 ###Calculate correlations between environmental mean yield and weather conditions. 
 #For climatic table in article
 
-climate=read.table("Climatedata.txt",sep="\t",header=T)
+climate=read.table("/Volumes/ST_MBG-PMg/Cathrine/NorFab/Article/3. Version March2020/Climatedata.txt",sep="\t",header=T)
 
 correlation(climate$Days_of_growth,climate$Mean_yield) # 0.85, **
 correlation(climate$Avg_Temp,climate$Mean_yield) # -0.69, *
@@ -717,19 +774,28 @@ correlation(climate$Avg_sun,climate$Mean_yield) # -0.75, *
 correlation(climate$Dry_days,climate$Mean_yield) # -0.76, *
 correlation(climate$Mean_yield,climate$Mean_yield) # 1, ***
 
-correlation(climate$Days_of_growth,climate$Mean_protein) # 0.86, not significant
-correlation(climate$Avg_Temp,climate$Mean_protein) # -0.79, not significant
-correlation(climate$Avg_Prec,climate$Mean_protein) # 0.81, not significant
-correlation(climate$Days_with_prec,climate$Mean_protein) # 0.63, not significant
-correlation(climate$Avg_hum,climate$Mean_protein) # 0.41, not significant
-correlation(climate$Avg_sun,climate$Mean_protein) # -0.60, not significant
-correlation(climate$Dry_days,climate$Mean_protein) # -0.51, not significant
-correlation(climate$Mean_yield,climate$Mean_protein) # 0.99, ***
+correlation(climate$Days_of_growth,climate$Mean_protein) # 0.35, not significant
+correlation(climate$Avg_Temp,climate$Mean_protein) # -0.25, not significant
+correlation(climate$Avg_Prec,climate$Mean_protein) # 0.32, not significant
+correlation(climate$Days_with_prec,climate$Mean_protein) # 0.05, not significant
+correlation(climate$Avg_hum,climate$Mean_protein) # -0.31, not significant
+correlation(climate$Avg_sun,climate$Mean_protein) # -0.08, not significant
+correlation(climate$Dry_days,climate$Mean_protein) # 0, not significant
+correlation(climate$Mean_yield,climate$Mean_protein) # 0.22, not significant
+
+
 
 ###Calculate correlations between traits of cultivars
 #For cultivar description table in article
 CultivarYieldMeans=aggregate(filtered$Yield..g..Pr.kvm.,list(filtered$Cultivar),mean)
 CultivarProteinMeans=aggregate(Filtered_protein$Protein,list(Filtered_protein$Cultivar),mean)
+
+sd_proteinmeans=aggregate(Filtered_protein$Protein,list(Filtered_protein$Cultivar),sd)
+sd_proteinmeans
+repcultivar_prot=count(Filtered_protein, vars = Cultivar)
+se_ProteinMeans=sd_proteinmeans[,2]/sqrt(repcultivar_prot$n) #Se of cultivar means
+round(se_ProteinMeans,1)
+
 Filtered_protein$Proteinyield=Filtered_protein$Yield..g..Pr.kvm.*Filtered_protein$Protein/100
 Proteinyieldmean=aggregate(Filtered_protein$Proteinyield,list(Filtered_protein$Cultivar),mean)
 
@@ -738,24 +804,85 @@ correlation(CultivarYieldMeans[,2],CultivarProteinMeans[,2]) #-0.68 **
 correlation(CultivarYieldMeans[,2],Proteinyieldmean[,2]) #0.93 ***
 
 
-Description=read.table("Genotype_information.txt",sep="\t",header=T)
-Genotypeinformation=cbind(CultivarYieldMeans,Description[,2:5])
-colnames(Genotypeinformation)[1:2]=c("Cultivar","Yield_mean","Protein_mean")
+
+# Panel 2 Supporting Figure 1
+
+CV_mean=tapply(Filtered_protein$Protein, Filtered_protein$Cultivar, mean)
+
+CV_stdev=tapply(Filtered_protein$Protein, Filtered_protein$Cultivar, sd)
+
+CV_var=tapply(Filtered_protein$Protein, Filtered_protein$Cultivar, var)
+
+CVpercent=CV_stdev/CV_mean
+CVpercent
+CVs=c(4.611475,3.108916,3.692058,4.954016,3.648544,3.421201,4.335544,3.965863,4.730999,4.875816,3.645966,6.554386,5.334901,4.228979,7.383690,3.549022,5.177707)
+total1=cbind(CultivarProteinMeans,CVs)
+colnames(total1)[2]="MeanProtein"
+colnames(total1)[1]="Cultivar"
+
+plot=ggplot(total1, aes(x=MeanProtein, y=CVs))+geom_point(col="#00ba38",cex=3.5,alpha=0.8) +
+  geom_text(label=total1$Cultivar,size=4.5, vjust=0.5) +
+  #scale_y_continuous(labels=scaleFUN) +
+  #scale_x_continuous(labels=scaleFUN) +
+  ylab("Coefficient of variation (%)") + ylim(2,8) +
+  xlab("Protein content (%)") +
+  geom_vline(xintercept=mean(Filtered_protein$Protein),colour="black",linetype=2) +
+  geom_hline(yintercept=mean(total1$CVs),colour="black",linetype=2)
+
+plot+theme_bw()
+
+# Save as default size suggested
+
+# Panel 1 Supporting Figure 1
+e <- ggplot(Filtered_protein, aes(x = reorder(Cultivar, Protein, fun = mean), y = Protein)) + 
+  geom_boxplot(fill = "#00ba38",alpha=.8) +geom_jitter(position=position_jitter(0.2),cex=1)  +
+  labs(x="Cultivar", y="Protein content (%)")+theme_bw(base_size = 14) 
+
+e #Save as default size suggested
+
+
+# compare cultivar means for protein 
+setwd("/Volumes/ST_MBG-PMg/Cathrine/NorFab/Article/1. version/Publication ready/Final_20191112")
+data=read.table("YieldData_nodash.txt",sep="\t",header=T)
+rowstoremove=which(is.na(data$Protein))
+data=data[-rowstoremove,]
+
+fit <- aov(Protein~ factor(Cultivar)  , data=data)
+
+results <- TukeyHSD(fit, ordered=TRUE)
+multcompLetters4(fit, results)
+plot(TukeyHSD(fit))
+
+
+
+
+
+
+
+
+Description=read.table("/Volumes/ST_MBG-PMg/Cathrine/NorFab/Article/3. Version March2020/Genotype_information.txt",sep="\t",header=T)
+Genotypeinformation=cbind(CultivarYieldMeans,Description[,2:6])
+colnames(Genotypeinformation)[1:2]=c("Cultivar","Yield_mean")
 head(Genotypeinformation)
 Genotypeinformation=cbind(Genotypeinformation,CultivarProteinMeans[,2])
-colnames(Genotypeinformation)[7]=c("Protein_mean")
+colnames(Genotypeinformation)[8]=c("Protein_mean")
 
 
 correlation(Genotypeinformation$Yield_mean,Genotypeinformation$TGW) #0.81, ***
 correlation(Genotypeinformation$Yield_mean,Genotypeinformation$Days_to_Maturation) #0.68, **
 correlation(Genotypeinformation$Yield_mean,Genotypeinformation$Days_to_flowering) #0.09961, not significant
 correlation(Genotypeinformation$Yield_mean,Genotypeinformation$Days_of_flowering) #-0.22, not significant
+correlation(Genotypeinformation$Yield_mean,Genotypeinformation$zt) #-0.37, not significant
+
 
 correlation(Genotypeinformation$Protein_mean,Genotypeinformation$TGW) #-0.60, *
 correlation(Genotypeinformation$Protein_mean,Genotypeinformation$Days_to_Maturation) #-0.23, not significant
 correlation(Genotypeinformation$Protein_mean,Genotypeinformation$Days_to_flowering) #0.075, not significant
 correlation(Genotypeinformation$Protein_mean,Genotypeinformation$Days_of_flowering) #-0.08, not significant
+correlation(Genotypeinformation$Protein_mean,Genotypeinformation$zt) #0.59, *
+
 correlation(Genotypeinformation$Yield_mean,Genotypeinformation$Protein_mean) #-0.68, **
+
 
 
 #Anova test to compare seed yield means 
@@ -768,5 +895,73 @@ data$Yield..g..Pr.kvm.=data$Yield..kg..Pr.kvm.*1000
 
 fit <- aov(Yield..g..Pr.kvm.~ factor(Cultivar)  , data=data)
 
-results <- TukeyHSD(fit)
+results <- TukeyHSD(fit, ordered=TRUE)
 multcompLetters4(fit, results)
+plot(TukeyHSD(fit))
+
+#n*=29
+
+#Mean comparison climate data
+climatedata=read.table("/Volumes/ST_MBG-PMg/Cathrine/NorFab/Article/3. Version March2020/Climate_data.txt",head=T)
+head(climatedata)
+
+temp <- aov(Temp~ factor(TRID)  , data=climatedata)
+resultstemp <- TukeyHSD(temp, ordered=TRUE)
+multcompLetters4(temp, resultstemp)
+plot(TukeyHSD(temp))
+
+temp_year <- aov(Temp~ factor(year)  , data=climatedata)
+resultstemp_temp <- TukeyHSD(temp_year, ordered=TRUE)
+multcompLetters4(temp_year, resultstemp_temp)
+plot(TukeyHSD(temp_year))
+
+temp_loc <- aov(Temp~ factor(loc)  , data=climatedata)
+temp_loc_res <- TukeyHSD(temp_loc, ordered=TRUE)
+multcompLetters4(temp_loc, temp_loc_res)
+plot(TukeyHSD(temp_loc))
+
+prec <- aov(Prec~ factor(TRID)  , data=climatedata)
+resultsPrec <- TukeyHSD(prec, ordered=TRUE)
+multcompLetters4(prec, resultsPrec)
+plot(TukeyHSD(prec))
+
+prec_year <- aov(Prec~ factor(year)  , data=climatedata)
+resultsPrec_year <- TukeyHSD(prec_year, ordered=TRUE)
+multcompLetters4(prec_year, resultsPrec_year)
+plot(TukeyHSD(prec_year))
+
+prec_loc <- aov(Prec~ loc  , data=climatedata)
+resultsPrec_loc <- TukeyHSD(prec_loc, ordered=TRUE)
+multcompLetters4(prec_loc, resultsPrec_loc)
+plot(TukeyHSD(prec_loc))
+
+
+Humidity <- aov(Humidity~ factor(TRID)  , data=climatedata)
+resultsHum <- TukeyHSD(Humidity, ordered=TRUE)
+multcompLetters4(Humidity, resultsHum)
+plot(TukeyHSD(Humidity))
+
+Humidity_year <- aov(Humidity~ factor(year)  , data=climatedata)
+Res_Humidity_year <- TukeyHSD(Humidity_year, ordered=TRUE)
+multcompLetters4(Humidity_year, Res_Humidity_year)
+plot(TukeyHSD(Humidity_year))
+
+Humidity_loc <- aov(Humidity~ factor(loc)  , data=climatedata)
+Res_Humidity_loc <- TukeyHSD(Humidity_loc, ordered=TRUE)
+multcompLetters4(Humidity_loc, Res_Humidity_loc)
+plot(TukeyHSD(Humidity_loc))
+
+sunshineDur <- aov(sunshineDur~ factor(TRID)  , data=climatedata)
+resultsSun <- TukeyHSD(sunshineDur, ordered=TRUE)
+multcompLetters4(sunshineDur, resultsSun)
+plot(TukeyHSD(sunshineDur))
+
+sunshineDur_year <- aov(sunshineDur~ factor(year)  , data=climatedata)
+sunshineDur_year_results <- TukeyHSD(sunshineDur_year, ordered=TRUE)
+multcompLetters4(sunshineDur_year, sunshineDur_year_results)
+plot(TukeyHSD(sunshineDur_year))
+
+sunshineDur_loc <- aov(sunshineDur~ factor(loc)  , data=climatedata)
+sunshineDur_loc_results <- TukeyHSD(sunshineDur_loc, ordered=TRUE)
+multcompLetters4(sunshineDur_loc, sunshineDur_loc_results)
+plot(TukeyHSD(sunshineDur_loc))
